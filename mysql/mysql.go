@@ -1,7 +1,6 @@
 package mysql
 
 import (
-  "strings"
   "os"
   _ "github.com/go-sql-driver/mysql"
   "database/sql"
@@ -11,7 +10,6 @@ import (
 /* 起動前に変更 */
 const User = "user"
 const Pass = "pass"
-const Addr = os.Getenv("$TEST_DB_PORT_3306_TCP_ADDR")
 const Port = 3306
 
 type MySQL struct {
@@ -19,7 +17,7 @@ type MySQL struct {
   dbName string
 }
 
-type ColmunDefinition struct {
+type ColumnDefinition struct {
   name string
   dataType string
   primaryKey bool
@@ -32,14 +30,19 @@ func NewColumnDefinition(n string, dt string, pk bool) *ColumnDefinition {
 
 func (this *MySQL) ConnectServer() {
   var err error
-  this.db, err = sql.Open("mysql", User + ":" + Pass + "@(" + Addr ":" + Port + ")/")
+  this.db, err = sql.Open("mysql", User + ":" + Pass + "@(" + os.Getenv("$TEST_DB_PORT_3306_TCP_ADDR") + ":" + Port + ")/")
   if err != nil {
     log.Fatal(err)
   }
 }
 
-func (this *MySQL) CreateDB(dbName string) {
-  CreateDBSetChar(dbName, nil)
+func (this *MySQL) UseDB(dbName string) {
+  this.db, err = sql.Exec("USE " + dbName)
+  if err != nil {
+    log.Fatal(err)
+  } else {
+    this.dBName = dbName
+  }
 }
 
 func (this *MySQL) CreateDBSetChar(dbName string, charType string) {
@@ -55,23 +58,18 @@ func (this *MySQL) CreateDBSetChar(dbName string, charType string) {
   UseDB(dbName)
 }
 
-func (this *MySQL) UseDB(dbName string) {
-  this.db, err = sql.Exec("USE " + dbName)
-  if err != nil {
-    log.Fatal(err)
-  } else {
-    this.dBName = dbName
-  }
+func (this *MySQL) CreateDB(dbName string) {
+  CreateDBSetChar(dbName, nil)
 }
 
 func (this *MySQL) CreateTable(tableName string, columns []ColumnDefinition) {
   cSql = "("
-  []pkeys string
+  pkeys []string
   for _, column := range columns {
     cSql += column.name + " " + column.dataType
     if column.primaryKey {
       cSql += " NOT NULL"
-      pkeys = append([]pkeys, column.name)
+      pkeys = append(pkeys, column.name)
     }
     cSql += ","
   }
@@ -111,7 +109,7 @@ func (this *MySQL) Insert (tableName string, datas []string) {
   params = Trim(params, ",")
   params += ")"
   iSql += params
-  this.db, err := sql.Exec(iSql)
+  this.db, err = sql.Exec(iSql)
   if err != nil {
       log.Fatal("insert error: ", err)
   }
@@ -119,7 +117,7 @@ func (this *MySQL) Insert (tableName string, datas []string) {
 
 func (this *MySQL) Update(tableName string, setColumn string, setValue string, whereColumn string, whereValue string) {
   uSql := "UPDATE " + tableName + " SET " + setColumn + "=" + setValue + " WHERE " + whereColumn + "=" + whereValue
-  this.db, err := sql.Exec(uSql)
+  this.db, err = sql.Exec(uSql)
   if err != nil {
     log.Fatal("update error: ", err)
   }
@@ -127,7 +125,7 @@ func (this *MySQL) Update(tableName string, setColumn string, setValue string, w
 
 func (this *MySQL) Delete(tableName string, whereColumn string, whereValue string) {
   dSql := "DELETE FROM " + tableName + " " + whereColumn + "=" + whereValue
-  this.db, err := sql.Exec(dSql)
+  this.db, err = sql.Exec(dSql)
   if err != nil {
     log.Fatal("delete error: ", err)
   }
