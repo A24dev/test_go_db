@@ -141,7 +141,7 @@ func (this *MySQL) Insert (tableName string, columns []Column) {
 
   iSql += names + values
 
-  fmt.Println("Insert:" + iSql)
+  // fmt.Println("Insert:" + iSql)
   var err error
   _, err = this.db.Exec(iSql)
   if err != nil {
