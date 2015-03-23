@@ -25,7 +25,7 @@ func main() {
   columnDefs = append(columnDefs, columnd1, columnd2)
   m.CreateTable(tableName, columnDefs)
   
-  startTime := time.Nanoseconds()
+  start := time.Now()
   for i := 0; i < 10000; ++i {
     var column []mysql.Column
     id := strconv.Itoa(i)
@@ -33,11 +33,9 @@ func main() {
     column = append(column, *mysql.NewColumn("id", id), *mysql.NewColumn("name", name))
     m.Insert(tableName, column)
   }
-  endTime := time.Nanoseconds()
+  end := time.Now()
   
-  fmt.Print("time = ")
-  fmt.Print(endTime - startTime)
-  fmt.Println("[nsec]")
+  fmt.Printf("time = %f [sec]\n", (end.Sub(start)).Seconds())
   
   m.Update(tableName, "name", "'up1'", "id", "2")
   
