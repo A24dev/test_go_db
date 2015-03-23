@@ -1,6 +1,8 @@
 package mysql
 
 import (
+  "fmt"
+  "strings"
   "os"
   _ "github.com/go-sql-driver/mysql"
   "database/sql"
@@ -8,9 +10,9 @@ import (
 )
 
 /* 起動前に変更 */
-const User = "user"
-const Pass = "pass"
-const Port = 3306
+const User = "root"
+const Pass = ""
+const Port = "3306"
 
 type MySQL struct {
   db *sql.DB
@@ -23,48 +25,64 @@ type ColumnDefinition struct {
   primaryKey bool
 }
 
+type Column struct {
+  name string
+  value string
+}
+
 func NewColumnDefinition(n string, dt string, pk bool) *ColumnDefinition {
-  columnDef := &Column{name: n, dataType: dt, primaryKey: pk}
+  columnDef := &ColumnDefinition{name: n, dataType: dt, primaryKey: pk}
   return columnDef
+}
+
+func NewColumn(n string, v string) *Column {
+  column := &Column{name: n, value: v}
+  return column
 }
 
 func (this *MySQL) ConnectServer() {
   var err error
-  this.db, err = sql.Open("mysql", User + ":" + Pass + "@(" + os.Getenv("$TEST_DB_PORT_3306_TCP_ADDR") + ":" + Port + ")/")
+  oSql := User + ":" + Pass + "@tcp(" + os.Getenv("TEST_DB_PORT_3306_TCP_ADDR") + ":" + Port + ")/"
+  fmt.Println("ConnectServer:" + oSql)
+  this.db, err = sql.Open("mysql", oSql)
   if err != nil {
     log.Fatal(err)
   }
 }
 
 func (this *MySQL) UseDB(dbName string) {
-  this.db, err = sql.Exec("USE " + dbName)
+  uSql := "USE " + dbName
+  fmt.Println("UseDB:" + uSql)
+  var err error
+  _, err = this.db.Exec(uSql)
   if err != nil {
-    log.Fatal(err)
+    fmt.Println(err)
   } else {
-    this.dBName = dbName
+    this.dbName = dbName
   }
 }
 
 func (this *MySQL) CreateDBSetChar(dbName string, charType string) {
   createDBSql := "CREATE DATABASE " + dbName
-  if charSet != nil {
+  if len(charType) != 0 {
     createDBSql += " CHARACTER SET " + charType
   }
+  fmt.Println("CreateDBSetChar:" + createDBSql)
   var err error
-  this.db, err = sql.Exec(createDBSql)
+  _, err = this.db.Exec(createDBSql)
   if err != nil {
-    log.Fatal(err)
+    fmt.Println(err)
   }
-  UseDB(dbName)
+  this.UseDB(dbName)
 }
 
 func (this *MySQL) CreateDB(dbName string) {
-  CreateDBSetChar(dbName, nil)
+  this.CreateDBSetChar(dbName, "")
 }
-
+ 
 func (this *MySQL) CreateTable(tableName string, columns []ColumnDefinition) {
-  cSql = "("
-  pkeys []string
+  cSql := "("
+  var pkeys []string
   for _, column := range columns {
     cSql += column.name + " " + column.dataType
     if column.primaryKey {
@@ -73,22 +91,26 @@ func (this *MySQL) CreateTable(tableName string, columns []ColumnDefinition) {
     }
     cSql += ","
   }
-  cSql = Trim(cSql, ",")
-  cSql += ") ENGINE=InnoDB"
-  
-  this.db, cterr = sql.Exec("CREATE TABLE " + tableName + cSql)
+  cSql = strings.Trim(cSql, ",")
+  cSql += ")"
+  cSql = "CREATE TABLE " + tableName + cSql
+  fmt.Println("CreateTable:" + cSql)
+  var cterr error
+  _, cterr = this.db.Exec(cSql)
   if cterr != nil {
-    log.Fatal(cterr)
-  }
-  
-  if len(pkeys) != 0 {
+    fmt.Println(cterr)
+  } else if len(pkeys) != 0 {
     pSql := "ALTER TABLE " + tableName + " ADD PRIMARY KEY("
     for _, key := range pkeys {
-      pSql += key ","
+      pSql += key + ","
     }
-    pSql = Trim(pSql, ",")
+    pSql = strings.Trim(pSql, ",")
     pSql += ")"
-    this.db, pkerr = sql.Exec(pSql)
+    fmt.Println("CreateTable: " + pSql)
+    _, perr := this.db.Exec(pSql)
+    if perr != nil {
+      fmt.Println(perr)
+    }
   }
 }
 
@@ -100,41 +122,61 @@ func (this *MySQL) Close() {
   }
 }
 
-func (this *MySQL) Insert (tableName string, datas []string) {
+func (this *MySQL) Insert (tableName string, columns []Column) {
   iSql := "INSERT INTO " + tableName + " "
-  params := "values("
-  for _, data := range datas {
-    params += data + ","
+
+  names := "("
+  for _, column := range columns {
+    names += column.name + ","
   }
-  params = Trim(params, ",")
-  params += ")"
-  iSql += params
-  this.db, err = sql.Exec(iSql)
+  names = strings.Trim(names, ",")
+  names += ")"
+
+  values := " VALUES ("
+  for _, column := range columns {
+    values += column.value + ","
+  }
+  values = strings.Trim(values, ",")
+  values += ")"
+
+  iSql += names + values
+
+  fmt.Println("Insert:" + iSql)
+  var err error
+  _, err = this.db.Exec(iSql)
   if err != nil {
-      log.Fatal("insert error: ", err)
+      fmt.Print("insert error: ")
+      fmt.Println(err)
   }
 }
 
 func (this *MySQL) Update(tableName string, setColumn string, setValue string, whereColumn string, whereValue string) {
-  uSql := "UPDATE " + tableName + " SET " + setColumn + "=" + setValue + " WHERE " + whereColumn + "=" + whereValue
-  this.db, err = sql.Exec(uSql)
+  uSql := "UPDATE " + tableName + " SET " + setColumn + " = " + setValue + " WHERE " + whereColumn + " = " + whereValue
+  fmt.Println("Update:" + uSql)
+  var err error
+  _, err = this.db.Exec(uSql)
   if err != nil {
-    log.Fatal("update error: ", err)
+    fmt.Print("update error: ")
+    fmt.Println(err)
   }
 }
 
 func (this *MySQL) Delete(tableName string, whereColumn string, whereValue string) {
-  dSql := "DELETE FROM " + tableName + " " + whereColumn + "=" + whereValue
-  this.db, err = sql.Exec(dSql)
+  dSql := "DELETE FROM " + tableName + " WHERE " + whereColumn + " = " + whereValue
+  fmt.Println("Delete:" + dSql)
+  var err error
+  _, err = this.db.Exec(dSql)
   if err != nil {
-    log.Fatal("delete error: ", err)
+    fmt.Print("delete error: ")
+    fmt.Println(err)
   }
 }
 
 func (this *MySQL) Query(qSql string) *sql.Rows {
   rows, err := this.db.Query(qSql)
   if err != nil {
-    log.Fatal(err)
+    fmt.Print("query error: ")
+    fmt.Println(err)
   }
   return rows;
 }
@@ -147,7 +189,8 @@ func (this *MySQL) QueryRow(qSql string) *sql.Row {
 func (this *MySQL) FetchAll(qSql string) [][]interface{} {
   rows, err := this.db.Query(qSql)
   if err != nil {
-    log.Fatal(err)
+    fmt.Print("fetch all error: ")
+    fmt.Println(err)
   }
   defer rows.Close()
 
